@@ -1,0 +1,438 @@
+[
+  {
+    "repo": "pydantic/pydantic",
+    "picks": [
+      {
+        "issue_number": 11553,
+        "title": "PydanticOmit failing with duplicated union field",
+        "why_this_one": "This is a clear, reproducible bug in JSON schema generation where raising `PydanticOmit` in a custom type's `__get_pydantic_json_schema__` works for single-field models but crashes when the same type appears in multiple fields. The root cause is likely in how the schema deduplication/caching interacts with `PydanticOmit`, making it a well-scoped fix in the JSON schema generation code path. Maintainers have labeled it `bug v2` and `topic-json schema`, signaling it's accepted and actionable.",
+        "approach": [
+          "Reproduce the bug with the provided example and write a failing test in the JSON schema test suite.",
+          "Trace the exception through `pydantic/_internal/_generate_schema.py` and `pydantic/json_schema.py` to find where the cached/deduplicated schema reference re-raises `PydanticOmit` unexpectedly.",
+          "Identify whether the issue is in `_model_field_schema` or the union schema generation that reuses a cached schema ref without re-checking for `PydanticOmit`.",
+          "Fix the deduplication logic to handle `PydanticOmit` gracefully when a type appears multiple times (e.g., catch the exception at the union member level rather than propagating it to the top-level schema).",
+          "Verify the fix with the original example and add edge-case tests (union with 3+ members, nested models, etc.)."
+        ],
+        "effort": "small",
+        "skills_demonstrated": [
+          "JSON schema generation",
+          "Python type system",
+          "bug diagnosis in complex code paths"
+        ],
+        "resume_blurb": "Fixed a bug in Pydantic's JSON schema generation where `PydanticOmit` raised incorrectly for custom types appearing in multiple union fields due to schema deduplication not handling the omit sentinel."
+      },
+      {
+        "issue_number": 12647,
+        "title": "Faster _fields.py collect_model_fields",
+        "why_this_one": "This is a concrete performance issue in `collect_model_fields` where `get_model_type_hints` redundantly traverses the full MRO even though each base class already has `model_fields` cached, causing quadratic behavior for deep inheritance hierarchies. The issue includes a clear hypothesis about the fix and is labeled `bug v2`, making it tractable and reviewable. A benchmark before/after would make this highly defensible on a resume.",
+        "approach": [
+          "Profile `collect_model_fields` with a deep inheritance chain (e.g., 20+ levels) to establish a baseline benchmark.",
+          "Audit `_typing_extra.get_model_type_hints` to understand exactly which MRO traversal steps are redundant given that `model_fields`, `class_vars`, and `private_attributes` are already stored on each base.",
+          "Refactor `collect_model_fields` to use already-computed `model_fields` from direct bases and only call `get_model_type_hints` for the current class's own annotations, not the full MRO.",
+          "Ensure correctness by running the full test suite, paying special attention to field override, annotation merging, and `ClassVar`/`PrivateAttr` edge cases.",
+          "Add a benchmark (e.g., using `pytest-benchmark`) demonstrating the speedup for large inheritance trees."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Python MRO and metaclass internals",
+          "performance profiling",
+          "type hint resolution"
+        ],
+        "resume_blurb": "Optimized Pydantic's model field collection to avoid redundant MRO traversal for deep inheritance hierarchies, reducing model class construction time from O(n\u00b2) to O(n) for large class trees."
+      },
+      {
+        "issue_number": 9731,
+        "title": "Add support for `typing.Never`",
+        "why_this_one": "Supporting `typing.Never` is a well-defined, bounded feature: it maps to a schema that always fails validation (an empty union or a dedicated 'never' schema in pydantic-core), and the issue has clear acceptance criteria. Maintainers have engaged and the fix touches the core schema generation path, making it substantive and interview-worthy. The `deferred` label likely just means it wasn't prioritized, not that it's architecturally blocked.",
+        "approach": [
+          "Add a handler for `typing.Never` (and `typing_extensions.Never`) in `pydantic/_internal/_generate_schema.py` in the type dispatch logic.",
+          "Map `Never` to a pydantic-core schema that always fails \u2014 likely a `no-match` union schema or a custom `never` schema if pydantic-core supports it; otherwise use a validator that always raises.",
+          "Handle serialization: `Never` typed fields should serialize to nothing or raise, consistent with the type's semantics.",
+          "Add tests covering `Never` as a standalone field type, in a union (e.g., `int | Never` simplifies to `int`), and in discriminated unions.",
+          "Update type stubs/documentation to reflect the new support."
+        ],
+        "effort": "small",
+        "skills_demonstrated": [
+          "Python type system",
+          "pydantic-core schema generation",
+          "static typing"
+        ],
+        "resume_blurb": "Implemented support for `typing.Never` in Pydantic's schema generation, correctly mapping it to an always-failing validator and enabling its use in union types and discriminated unions."
+      }
+    ]
+  },
+  {
+    "repo": "astral-sh/ruff",
+    "picks": [
+      {
+        "issue_number": 20782,
+        "title": "`UP037` causes runtime errors in Python 3.14",
+        "why_this_one": "This is a concrete bug where an autofix (removing quoted annotations) produces broken code at runtime when the referenced type is only imported under `TYPE_CHECKING`. The issue has a clear reproduction pattern (TYPE_CHECKING-guarded imports), maintainers have labeled it 'fixes' and 'needs-decision', and the fix direction is well-understood: UP037 must check whether the unquoted name would be resolvable at runtime before removing quotes. This is a correctness/safety issue with a real user impact.",
+        "approach": [
+          "Reproduce the bug: create a test file with a `TYPE_CHECKING`-guarded import and a quoted annotation referencing that type, confirm UP037 incorrectly removes the quotes.",
+          "In the UP037 rule implementation, collect all names imported exclusively inside `if TYPE_CHECKING:` blocks in the current file.",
+          "Before emitting a fix that unquotes an annotation, check whether the annotation's referenced name(s) are among the TYPE_CHECKING-only imports.",
+          "If any referenced name is only available under TYPE_CHECKING and `from __future__ import annotations` is not present, suppress the fix (or add the import as part of the fix).",
+          "Add regression tests covering: TYPE_CHECKING-guarded import with quoted annotation (no fix), same with `from __future__ import annotations` present (fix allowed), and non-TYPE_CHECKING import (fix allowed)."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "static analysis",
+          "Python type system",
+          "AST traversal",
+          "Rust"
+        ],
+        "resume_blurb": "Fixed a correctness bug in Ruff's UP037 autofix that caused runtime errors by incorrectly unquoting annotations whose types were only imported under TYPE_CHECKING, adding scope-aware import analysis to guard the fix."
+      },
+      {
+        "issue_number": 3247,
+        "title": "FBT003: False positive with positional-only parameters",
+        "why_this_one": "This is a clear false-positive bug in the FBT003 rule: boolean literals passed as positional arguments to functions that only accept positional arguments (e.g., `*args` or positional-only `/` parameters) should not be flagged. The reproduction case is minimal and well-defined, the fix requires non-trivial call-site analysis (resolving the callee's signature to check for positional-only params), and it's the kind of type-system/AST work that reads well on a resume.",
+        "approach": [
+          "Reproduce the false positive with the provided minimal example and confirm the current behavior.",
+          "In the FBT003 checker, when a boolean literal is found as a positional argument in a function call, attempt to resolve the callee within the same file.",
+          "If the callee is a locally-defined function, inspect its parameter list: if the corresponding parameter position is positional-only (before `/`) or the function uses `*args` with no keyword-capable parameters at that position, suppress the diagnostic.",
+          "Handle the common case of `*args`-only functions (like `foo(*args)`) as a special case since all arguments are positional.",
+          "Add test cases: `*args`-only function, positional-only `/` parameter, mixed signature where the boolean lands on a keyword-capable param (should still warn)."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "AST traversal",
+          "Python type system",
+          "static analysis",
+          "Rust"
+        ],
+        "resume_blurb": "Eliminated a class of false positives in Ruff's FBT003 rule by implementing call-site parameter resolution to detect positional-only and *args parameters, preventing spurious warnings on valid boolean arguments."
+      },
+      {
+        "issue_number": 12434,
+        "title": "Implement `pydoclint`",
+        "why_this_one": "This is a well-scoped plugin implementation issue with a detailed checklist of rules, several already done as reference implementations, and active maintainer engagement (updated April 2026). Picking one or two unchecked rules (e.g., DOC101 \u2014 docstring contains fewer arguments than in function signature) is a bounded, substantive contribution that touches docstring parsing, function signature analysis, and the rule registration infrastructure \u2014 all interview-worthy code paths.",
+        "approach": [
+          "Pick a specific unchecked rule, e.g., DOC101 (docstring contains fewer arguments than in function signature), and study the already-implemented DOC102 as a reference.",
+          "Parse the function signature to extract parameter names (excluding `self`, `cls`, `*args`, `**kwargs` per pydoclint conventions).",
+          "Parse the docstring's Args/Parameters section using the existing docstring parsing infrastructure to extract documented argument names.",
+          "Compare the two sets: if the docstring documents fewer arguments than the signature, emit DOC101 with the missing argument names.",
+          "Add fixture files and snapshot tests following the existing DOC1xx test patterns, and register the rule in the rule table."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "docstring parsing",
+          "AST traversal",
+          "Rust",
+          "rule implementation"
+        ],
+        "resume_blurb": "Implemented DOC101 (and related rules) from the pydoclint spec in Ruff, adding docstring-to-signature argument count validation with support for multiple docstring styles (Google, NumPy, Sphinx)."
+      }
+    ]
+  },
+  {
+    "repo": "astral-sh/uv",
+    "picks": [
+      {
+        "issue_number": 6772,
+        "title": "`[tool.uv.sources]` can't be used as `[sources]` in `uv.toml`",
+        "why_this_one": "This is a clear configuration parsing bug with a reproducible case: `[sources]` in `uv.toml` is silently ignored while `[tool.uv.sources]` in `pyproject.toml` works fine, and mixing both throws a confusing warning. The fix is bounded to the settings/config deserialization layer in Rust, and maintainers have acknowledged the inconsistency. The acceptance criteria are unambiguous: `[sources]` in `uv.toml` should behave identically to `[tool.uv.sources]` in `pyproject.toml`.",
+        "approach": [
+          "Locate where `uv.toml` is parsed and deserialized \u2014 likely in `crates/uv-settings` or similar \u2014 and find where top-level keys are mapped to their `tool.uv.*` equivalents.",
+          "Identify why `sources` is not being recognized as a top-level key in `uv.toml` (missing field mapping, serde rename, or schema gap).",
+          "Add `sources` as a recognized top-level field in the `uv.toml` schema/struct, mirroring how other `tool.uv.*` fields are exposed.",
+          "Ensure the spurious warning about 'Found both a `uv.toml`...' is suppressed or corrected when `sources` is used in `uv.toml` without a `pyproject.toml` counterpart.",
+          "Add an integration test that uses `[sources]` in `uv.toml` and verifies it resolves packages correctly, plus a test for the warning behavior."
+        ],
+        "effort": "small",
+        "skills_demonstrated": [
+          "Rust",
+          "configuration/settings parsing",
+          "serde deserialization",
+          "CLI tooling"
+        ],
+        "resume_blurb": "Fixed a configuration parsing bug in uv where `[sources]` in `uv.toml` was silently ignored, aligning it with `[tool.uv.sources]` behavior in `pyproject.toml` by correcting the serde schema and adding regression tests."
+      },
+      {
+        "issue_number": 8253,
+        "title": "Explicit index not respected for transitive dependency",
+        "why_this_one": "This is a correctness bug in the dependency resolver: packages declared with an explicit index in `[tool.uv.sources]` are found correctly as direct dependencies but fail for transitive dependencies, causing resolution errors. The bug touches the non-trivial resolver/index-routing code path, and there are clear reproduction steps. Maintainers have tagged it as an enhancement/bug with recent activity, making it likely to be reviewed.",
+        "approach": [
+          "Trace how `[tool.uv.sources]` index assignments are propagated during resolution \u2014 find where direct dependency index hints are stored and passed to the resolver.",
+          "Identify the code path where transitive dependency resolution occurs and check whether source/index hints from the parent package's declared sources are consulted or dropped.",
+          "Ensure that when package `a` is resolved from an explicit index, its declared dependencies (like `b`) also inherit or look up the correct index mapping from `[tool.uv.sources]`.",
+          "Write a test workspace with a mock internal index where `a` depends on `b`, both declared in `[tool.uv.sources]`, and assert that `uv lock` resolves successfully.",
+          "Handle edge cases: what if `b` is not declared in sources but `a` is \u2014 should it fall back to default index or error clearly?"
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Rust",
+          "dependency resolution algorithms",
+          "package index routing",
+          "async I/O"
+        ],
+        "resume_blurb": "Fixed a resolver correctness bug in uv where explicit index assignments in `[tool.uv.sources]` were not propagated to transitive dependencies, causing spurious resolution failures for private package registries."
+      },
+      {
+        "issue_number": 12449,
+        "title": "exclude-newer should have an extra flag to allow it to skip over packages that don't have publish date information.",
+        "why_this_one": "This is a well-scoped enhancement to an existing flag: `--exclude-newer` currently hard-fails when a package lacks publish date metadata, making it nearly unusable in mixed environments. The fix involves adding a new flag (e.g., `--exclude-newer-allow-missing-dates`) and threading it through the resolver's date-filtering logic. The acceptance criteria are clear, the code path is bounded to the resolver's version filtering, and there is recent maintainer engagement.",
+        "approach": [
+          "Find where `--exclude-newer` is implemented in the resolver \u2014 locate the version filtering logic that checks publish timestamps against the cutoff date.",
+          "Identify the code path that currently errors or rejects packages with missing publish date metadata.",
+          "Add a new CLI flag (e.g., `--exclude-newer-allow-missing`) and a corresponding settings field that, when set, causes packages without publish date info to be treated as passing the filter (i.e., not excluded).",
+          "Thread the new flag through the settings structs, CLI argument parsing, and down into the resolver's date-check logic.",
+          "Add tests covering: (1) a package with no publish date is excluded by default, (2) with the new flag it is included, (3) packages with dates still respect the cutoff normally."
+        ],
+        "effort": "small",
+        "skills_demonstrated": [
+          "Rust",
+          "CLI argument design",
+          "resolver internals",
+          "package metadata handling"
+        ],
+        "resume_blurb": "Extended uv's `--exclude-newer` resolver flag with a graceful fallback mode for packages lacking publish date metadata, preventing spurious resolution failures in mixed public/private package environments."
+      }
+    ]
+  },
+  {
+    "repo": "pola-rs/polars",
+    "picks": [
+      {
+        "issue_number": 1999,
+        "title": "Read CSV files created by R (header line is one column shorter)",
+        "why_this_one": "This is a well-scoped, accepted enhancement with a clear acceptance criterion: detect when the header has one fewer column than data rows (R's default CSV format) and handle it gracefully. The fix lives in the CSV parsing code path, which is non-trivial and interview-worthy. Maintainers have labeled it 'accepted' and the approach is well-understood.",
+        "approach": [
+          "Locate the CSV header/schema inference logic in the Rust source (crates/polars-io/src/csv/).",
+          "After reading the header row, peek at the first data row to compare column counts.",
+          "If data row has exactly one more column than the header, prepend a synthetic column name (e.g., 'column_0' or '') for the index column.",
+          "Add a parameter like `has_header_index=True` or auto-detect the mismatch, following the existing `has_header` pattern.",
+          "Write regression tests using R-generated CSV fixtures with and without the index column to confirm correct parsing."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Rust",
+          "CSV parsing",
+          "file format handling",
+          "test writing"
+        ],
+        "resume_blurb": "Fixed Polars CSV parser to correctly handle R-generated files where the header row has one fewer column than data rows, enabling seamless interoperability with R's default data export format."
+      },
+      {
+        "issue_number": 14373,
+        "title": "Add Pandas `.compare()` Functionality",
+        "why_this_one": "Labeled 'accepted', has clear semantics modeled after pandas' well-documented API, and the implementation can be built entirely from existing Polars expressions (join, melt, filter). It's a real feature with practical impact and a concrete spec to implement against, making it easy to describe in an interview.",
+        "approach": [
+          "Study pandas' DataFrame.compare() output format: rows/columns with differences, with 'self'/'other' sub-columns.",
+          "Implement in Python layer using a full outer join on row index, then identify differing columns via element-wise comparison.",
+          "Support parameters: `align_axis` (0=rows, 1=columns), `keep_shape`, `keep_equal`, `result_names` to match pandas API.",
+          "Add the method to both DataFrame and optionally LazyFrame, with appropriate type annotations.",
+          "Write tests covering equal frames, frames with NaN differences, mismatched dtypes, and the various parameter combinations."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Python",
+          "DataFrame API design",
+          "expression composition",
+          "test writing"
+        ],
+        "resume_blurb": "Implemented DataFrame.compare() in Polars mirroring pandas' API, enabling efficient diff of large DataFrames using native Polars expressions rather than slow pandas fallback."
+      },
+      {
+        "issue_number": 13772,
+        "title": "allow `pl.element()` to be used in Series `filter` operation",
+        "why_this_one": "Labeled 'enhancement' with a clear proposed API, the fix involves wiring `pl.element()` through the Series.filter() code path so it resolves against the series itself \u2014 a targeted change touching the expression evaluation and Series API layers. It's small enough to ship in a week but touches non-trivial internals.",
+        "approach": [
+          "Trace how Series.filter() currently works in the Python bindings and Rust core (it likely expects a boolean Series directly).",
+          "When the filter argument is an Expr, convert the Series to a single-column DataFrame, evaluate the expression with element() resolving to that column, and extract the boolean mask.",
+          "Ensure pl.element() resolves correctly in this single-series context by reusing the existing list.eval() element resolution mechanism.",
+          "Handle edge cases: non-boolean expression results should raise a clear error, null handling should match existing filter behavior.",
+          "Add unit tests for the proposed syntax and verify it works for chained operations like pl.Series([1,2,3]).filter(pl.element() < 3)."
+        ],
+        "effort": "small",
+        "skills_demonstrated": [
+          "Rust",
+          "Python bindings",
+          "expression evaluation",
+          "API design"
+        ],
+        "resume_blurb": "Extended Polars Series.filter() to accept pl.element() expressions, enabling ergonomic inline filtering without requiring a variable binding or DataFrame conversion."
+      }
+    ]
+  },
+  {
+    "repo": "encode/httpx",
+    "picks": [],
+    "skipped": "no candidate issues"
+  },
+  {
+    "repo": "tiangolo/fastapi",
+    "picks": [
+      {
+        "issue_number": 13056,
+        "title": "Can't use `Annotated` with `ForwardRef`",
+        "why_this_one": "Using `from __future__ import annotations` causes all annotations to become strings/ForwardRefs, and FastAPI's dependency injection fails to resolve them when wrapped in `Annotated`. The fix involves ensuring forward references are properly evaluated before processing `Annotated` metadata, touching the core dependency resolution and parameter parsing code paths. Maintainers have confirmed the bug with a minimal repro and the fix direction is clear: resolve ForwardRefs before extracting `Depends` metadata from `Annotated`.",
+        "approach": [
+          "Locate where FastAPI processes `Annotated` type hints in `fastapi/_compat.py` and `fastapi/dependencies/utils.py`.",
+          "Identify where `get_typed_annotation` or similar utilities call `typing.get_type_hints()` \u2014 ensure `include_extras=True` is passed so `Annotated` metadata is preserved after ForwardRef resolution.",
+          "Before extracting `Depends` or other metadata from `Annotated`, call `typing.get_type_hints(func, include_extras=True)` on the enclosing function to resolve all ForwardRefs in the correct namespace.",
+          "Add a regression test that uses `from __future__ import annotations` with a `Depends`-annotated parameter where the type is defined after the endpoint, verifying correct OpenAPI schema generation and runtime behavior.",
+          "Verify the fix works for both dataclasses and Pydantic models used as forward-referenced dependency return types."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Python type system",
+          "ForwardRef resolution",
+          "FastAPI dependency injection internals",
+          "Annotated metadata handling"
+        ],
+        "resume_blurb": "Fixed a bug in FastAPI's dependency injection system where `Annotated` types with forward references (from `from __future__ import annotations`) failed to resolve correctly, patching the core parameter parsing pipeline to use `get_type_hints(include_extras=True)` for proper ForwardRef evaluation."
+      },
+      {
+        "issue_number": 10180,
+        "title": "Mounting sub-applications under `APIRouter`",
+        "why_this_one": "When a sub-application is mounted on an `APIRouter` (rather than directly on `FastAPI`), the mount is silently ignored because `APIRouter.mount()` stores routes but `include_router` doesn't propagate `Mount` route entries to the parent app's router. The fix requires handling `Mount` objects during `include_router` processing, touching the routing layer in a non-trivial way. The issue has active discussion and a clear repro case.",
+        "approach": [
+          "Inspect `fastapi/routing.py` `include_router` method to see how routes from the child router are iterated and added to the parent \u2014 confirm `Mount` instances are skipped or mishandled.",
+          "In `APIRouter.include_router`, detect `starlette.routing.Mount` entries in the included router's `routes` list and re-mount them on the parent router with the combined prefix.",
+          "Ensure the prefix from the `APIRouter` is correctly prepended to the mount path when propagating to the parent `FastAPI` app.",
+          "Add a test case that mounts a sub-FastAPI app on an `APIRouter` with a prefix, includes the router in the main app, and asserts the sub-app routes are reachable at the combined path.",
+          "Check edge cases: nested routers, multiple levels of prefix, and that existing direct `app.mount()` behavior is unaffected."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "ASGI routing",
+          "Starlette/FastAPI internals",
+          "middleware and mount propagation",
+          "integration testing"
+        ],
+        "resume_blurb": "Fixed a routing bug in FastAPI where sub-applications mounted on an `APIRouter` were silently dropped during `include_router`, by correctly propagating `Mount` route entries with combined prefixes to the parent application router."
+      }
+    ]
+  },
+  {
+    "repo": "pytest-dev/pytest",
+    "picks": [
+      {
+        "issue_number": 13669,
+        "title": "Vulnerable tmpdir handling (CVE-2025-71176)",
+        "why_this_one": "This is a real security CVE with a clear reproduction path and active maintainer engagement (31 comments, 'help wanted' label). The fix involves hardening the tmpdir permission checks in `_pytest/tmpdir.py` to properly validate ownership and permissions, which is a well-scoped, non-trivial code change with clear acceptance criteria.",
+        "approach": [
+          "Study the existing heuristics in `_pytest/tmpdir.py` around line 156 and understand the race conditions/permission issues described in the CVE.",
+          "Implement stricter ownership validation using `os.stat()` to verify the tmpdir is owned by the current user before use.",
+          "Add atomic directory creation with proper permission bits (0o700) to prevent symlink attacks and world-readable temp dirs.",
+          "Write regression tests that simulate the vulnerable scenarios (e.g., world-writable parent, wrong owner) and verify the fix prevents exploitation.",
+          "Ensure the fix works cross-platform (Linux/macOS/Windows) and handles edge cases like running as root or in containers."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "security hardening",
+          "filesystem operations",
+          "Python stdlib",
+          "pytest internals"
+        ],
+        "resume_blurb": "Fixed CVE-2025-71176 in pytest by hardening tmpdir ownership and permission validation in the tmpdir plugin, preventing symlink-based privilege escalation attacks."
+      },
+      {
+        "issue_number": 3697,
+        "title": "Handling of loggers with propagate=False",
+        "why_this_one": "This is a long-standing, well-understood bug where pytest's log capturing misses log records from loggers with `propagate=False` because the capture handler is only attached to the root logger. There is recent maintainer activity (updated April 2026) and the fix path is clear: attach capture handlers directly to non-propagating loggers.",
+        "approach": [
+          "Audit `_pytest/logging.py` to understand how `LogCaptureHandler` is currently attached only to the root logger during test runs.",
+          "During log capture setup, walk `logging.Logger.manager.loggerDict` to find all loggers with `propagate=False` and attach the capture handler to them as well.",
+          "Ensure handlers are properly removed during teardown to avoid handler leakage between tests.",
+          "Write tests that create a logger with `propagate=False`, emit records, and assert they appear in `caplog` and in the captured log output.",
+          "Handle edge cases like loggers created after capture starts and loggers that change `propagate` mid-test."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Python logging internals",
+          "pytest plugin architecture",
+          "test fixture design"
+        ],
+        "resume_blurb": "Fixed pytest log capturing to correctly intercept records from loggers with `propagate=False` by attaching capture handlers to all non-propagating loggers, not just the root logger."
+      },
+      {
+        "issue_number": 363,
+        "title": "Using monkeypatch in non function scoped fixture",
+        "why_this_one": "This is a highly requested, well-scoped feature with recent activity (updated April 2026) and a clear implementation path: expose scoped variants of `monkeypatch` (e.g., `module_monkeypatch`, `session_monkeypatch`) or allow the existing fixture to match the requesting fixture's scope. Maintainers have discussed the direction and it's a real usability gap.",
+        "approach": [
+          "Review `_pytest/monkeypatch.py` to understand how `MonkeyPatch` is implemented and why it's currently function-scoped only.",
+          "Implement scoped monkeypatch fixtures (`monkeypatch` for function, plus `module_monkeypatch`, `package_monkeypatch`, `session_monkeypatch`) that undo patches at the appropriate scope boundary.",
+          "Alternatively, investigate a dynamic scope approach where a factory fixture creates a `MonkeyPatch` instance scoped to the requesting fixture's scope.",
+          "Add tests covering session/module/class-scoped fixtures using the new scoped monkeypatch and verifying undo happens at the correct scope boundary.",
+          "Update documentation and add a deprecation/migration note for users currently working around this limitation."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "pytest fixture scoping",
+          "Python context managers",
+          "API design",
+          "pytest internals"
+        ],
+        "resume_blurb": "Implemented scoped monkeypatch fixtures in pytest, enabling `monkeypatch` usage in session-, module-, and class-scoped fixtures with correct undo semantics at each scope boundary."
+      }
+    ]
+  },
+  {
+    "repo": "python-poetry/poetry",
+    "picks": [
+      {
+        "issue_number": 5506,
+        "title": "Solver breaks with related dependencies that are both conditional",
+        "why_this_one": "This is a concrete, reproducible bug in the dependency solver where two conditional dependencies (both platform/python-version constrained) cause the solver to fail or produce incorrect results. The issue has a minimal reproduction case (linked gist) and touches the core solver logic, which is non-trivial and interview-worthy. The bug has been open long enough to be well-understood but is scoped to a specific solver code path.",
+        "approach": [
+          "Reproduce the bug locally using the provided pyproject.toml gist to confirm the failure mode.",
+          "Trace through poetry-core's solver (specifically the dependency resolution and marker/constraint merging logic) to identify where conditional dependencies interact incorrectly.",
+          "Add a regression test in the solver test suite that captures the exact failing scenario (two mutually conditional deps that share a transitive dependency).",
+          "Fix the marker combination/intersection logic so that when two conditional packages both require a common dependency, their combined markers are correctly unified rather than causing a conflict.",
+          "Verify the fix doesn't regress existing solver tests and run the full test suite."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "dependency resolution algorithms",
+          "PEP 508 environment markers",
+          "Python solver/SAT logic",
+          "regression testing"
+        ],
+        "resume_blurb": "Fixed a bug in Poetry's dependency solver where two conditionally-constrained packages sharing a transitive dependency caused incorrect resolution failures, adding a regression test to prevent recurrence."
+      },
+      {
+        "issue_number": 461,
+        "title": "Suggestion: new command to bump versions of dependencies in `pyproject.toml`",
+        "why_this_one": "This is a well-scoped CLI feature request with clear acceptance criteria: a `poetry upgrade` command that updates version constraints in pyproject.toml (not just the lockfile). Maintainers have engaged with the thread over years and the direction is clear. The implementation touches the CLI layer, pyproject.toml parsing/writing, and the solver, making it substantive and defensible in an interview.",
+        "approach": [
+          "Add a new `upgrade` command class in `src/poetry/console/commands/` modeled after the existing `update` command.",
+          "Parse the current version constraints from pyproject.toml for the specified packages (or all packages if none specified).",
+          "Query the repository for the latest available versions satisfying the Python/platform constraints, then update the constraint strings in pyproject.toml (e.g. `^1.2` \u2192 `^2.0`).",
+          "Re-run the solver with the new constraints to produce an updated lockfile, surfacing conflicts to the user.",
+          "Add CLI tests covering the happy path (constraint bumped, lockfile updated) and conflict cases."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "CLI design",
+          "TOML parsing and mutation",
+          "dependency version constraint logic",
+          "integration testing"
+        ],
+        "resume_blurb": "Implemented a `poetry upgrade` command that rewrites version constraints in pyproject.toml to their latest compatible versions, bridging the gap between `poetry update` (lockfile only) and full dependency upgrades."
+      },
+      {
+        "issue_number": 1012,
+        "title": "Allow root CA bundle to be configured",
+        "why_this_one": "This is a concrete, well-understood feature request with clear precedent (pip's `--cert` flag and `REQUESTS_CA_BUNDLE` env var). It affects corporate/enterprise users in air-gapped or TLS-inspecting environments and touches Poetry's HTTP/authentication configuration layer. The fix is bounded: add a config key and thread it through the requests session setup, which is non-trivial but well-scoped.",
+        "approach": [
+          "Add a new `certificates.ca-cert` (or similar) config key to Poetry's configuration schema, readable via `poetry config`.",
+          "Update the authenticator/session factory in `src/poetry/utils/authenticator.py` to pass the configured CA bundle path to the underlying `requests.Session` as the `verify` parameter.",
+          "Support both a global config setting and a per-repository override (mirroring how credentials are scoped).",
+          "Add support for the `REQUESTS_CA_BUNDLE` / `CURL_CA_BUNDLE` environment variables as fallback, consistent with pip behavior.",
+          "Write tests that mock the requests session and verify the CA bundle is correctly applied when the config key is set."
+        ],
+        "effort": "small",
+        "skills_demonstrated": [
+          "HTTP/TLS configuration",
+          "Python requests library",
+          "Poetry plugin/config architecture",
+          "security-sensitive networking"
+        ],
+        "resume_blurb": "Added configurable root CA bundle support to Poetry's HTTP layer, enabling use in enterprise environments with internal PKI or TLS-inspecting proxies, mirroring pip's `--cert` behavior."
+      }
+    ]
+  }
+]

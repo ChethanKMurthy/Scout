@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project-local
+.DS_Store
+.claude/
+.specstory/
+_check.py
+gsoc_agent.py
+gsoc_agent.md
+gsoc_output/
+

@@ -1,0 +1,44 @@
+{
+  "top": [
+    {
+      "rank": 1,
+      "repo": "pydantic/pydantic",
+      "issue": 11553,
+      "title": "PydanticOmit failing with duplicated union field",
+      "why_pick_this": "Tightly scoped bug with a clear repro and labels (`bug v2`, `topic-json schema`) signaling maintainer acceptance. The fix lives in one or two well-known files (json_schema.py / _generate_schema.py), making a 2-week part-time merge very realistic. Pydantic on the resume carries strong recognition, and the narrative ('I traced a schema deduplication interaction with a sentinel exception') is crisp and technical without being sprawling.",
+      "first_step": "Fork pydantic, add a failing test in tests/test_json_schema.py that reproduces the issue with a custom type raising PydanticOmit used in two fields, and run it under a debugger to capture the exact stack trace before touching any source."
+    },
+    {
+      "rank": 2,
+      "repo": "astral-sh/uv",
+      "issue": 6772,
+      "title": "`[tool.uv.sources]` can't be used as `[sources]` in `uv.toml`",
+      "why_pick_this": "Astral repos are high-prestige and uv is hot on resumes. This is a 'small' effort serde/schema fix with unambiguous acceptance criteria (parity with pyproject.toml). Low merge risk, fast iteration, and the Rust+config-parsing angle gives a substantive interview story without requiring deep resolver knowledge.",
+      "first_step": "Clone uv, grep `crates/uv-settings` for the struct deserializing pyproject's `[tool.uv.sources]`, then diff it against the `uv.toml` deserialization struct to identify the missing top-level `sources` field."
+    },
+    {
+      "rank": 3,
+      "repo": "astral-sh/ruff",
+      "issue": 20782,
+      "title": "`UP037` causes runtime errors in Python 3.14",
+      "why_pick_this": "Correctness bug in an autofix (high user impact), labeled 'fixes' with a clear fix direction: scope-aware analysis of TYPE_CHECKING imports before unquoting. Ruff is a top-tier resume name and the work demonstrates real Rust + static analysis chops. Bounded enough to land in 2 weeks part-time, and the story ('my fix prevented Ruff from generating code that crashes at import time') is excellent for interviews.",
+      "first_step": "Set up the ruff dev environment, find the UP037 rule file in `crates/ruff_linter/src/rules/pyupgrade/`, and add a snapshot test fixture with a TYPE_CHECKING-guarded import + quoted annotation to confirm the current broken autofix output."
+    },
+    {
+      "rank": 4,
+      "repo": "pydantic/pydantic",
+      "issue": 9731,
+      "title": "Add support for `typing.Never`",
+      "why_pick_this": "Small, well-bounded feature with clear semantics and an obvious dispatch site in _generate_schema.py. Adds a real capability rather than just fixing a bug, which reads as 'I shipped a feature in Pydantic' on a resume. The `deferred` label is a mild risk but maintainer engagement on the thread mitigates it; worth confirming intent in a comment before coding.",
+      "first_step": "Comment on the issue asking the maintainers to confirm they'd accept a PR and what schema shape they prefer (no-match union vs. dedicated never schema in pydantic-core), then start a draft branch adding a Never handler to the type dispatch in _generate_schema.py."
+    },
+    {
+      "rank": 5,
+      "repo": "astral-sh/uv",
+      "issue": 12449,
+      "title": "exclude-newer should have an extra flag to allow it to skip over packages that don't have publish date information",
+      "why_pick_this": "Small, additive change (new flag) with clear acceptance criteria and active maintainer engagement. Low risk of scope creep, since it doesn't alter default behavior. Threads through CLI parsing, settings, and the resolver\u2014enough surface area to learn uv internals and tell a real story, but contained enough to merge in 2 weeks. Second uv contribution would also strengthen 'I work in this codebase' positioning.",
+      "first_step": "Open the issue and post a short comment proposing the flag name (e.g. `--exclude-newer-allow-missing`) and asking maintainers to confirm before implementing\u2014this de-risks bikeshedding and signals seriousness."
+    }
+  ]
+}

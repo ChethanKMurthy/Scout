@@ -1,0 +1,44 @@
+{
+  "top": [
+    {
+      "rank": 1,
+      "repo": "astral-sh/ruff",
+      "issue": 3247,
+      "title": "FBT003: False positive with positional-only parameters",
+      "why_pick_this": "Maintainer explicitly said 'I would accept that patch' and pointed to the exact file. Clear acceptance criteria, bounded scope, and Ruff is a high-recognition repo. Rust + static analysis is substantive resume material with a crisp before/after narrative.",
+      "first_step": "Clone ruff, open crates/ruff_linter/src/rules/flake8_boolean_trap/helpers.rs, and write a failing test fixture using a function with a `*args` parameter and another with positional-only `/` syntax to lock in the bug before touching logic."
+    },
+    {
+      "rank": 2,
+      "repo": "pytest-dev/pytest",
+      "issue": 3697,
+      "title": "Handling of loggers with propagate=False",
+      "why_pick_this": "A maintainer already has PR #14375 in flight and is soliciting feedback/testing \u2014 lowest-risk merge path on the list. pytest is universally recognized, and 'fixed log capture for non-propagating loggers' is a clean one-sentence interview story about Python logging internals.",
+      "first_step": "Check out PR #14375 locally, run its tests against a minimal repro (logger with propagate=False emitting during a test), and post a substantive review comment or follow-up commit addressing any gaps \u2014 co-authorship is a faster path here than a competing PR."
+    },
+    {
+      "rank": 3,
+      "repo": "pydantic/pydantic",
+      "issue": 8271,
+      "title": "OpenAPI discriminator field disappeared with pydantic v2.5",
+      "why_pick_this": "Confirmed regression with maintainer acknowledgment, bisectable between two known versions, and high real-world impact (OpenAPI consumers). Regression-fix narratives interview extremely well: 'I bisected, found the commit, wrote a test, fixed it.' Pydantic is a top-tier repo for resume value.",
+      "first_step": "Write a pytest case using a discriminated union model and assert the `discriminator` key is present in `model_json_schema()` output; confirm it passes on v2.3 and fails on v2.5, then `git bisect` to find the offending commit."
+    },
+    {
+      "rank": 4,
+      "repo": "pytest-dev/pytest",
+      "issue": 363,
+      "title": "Using monkeypatch in non function scoped fixture",
+      "why_pick_this": "Maintainer explicitly approved the design in 2019 with `tmp_path_factory` as the pattern to follow \u2014 no architectural risk. Scope is well-bounded (mirror an existing fixture), and 'added session-scoped monkeypatch to pytest core' is an instantly understandable contribution on a resume.",
+      "first_step": "Read src/_pytest/monkeypatch.py and src/_pytest/tmpdir.py side by side to map the factory-fixture pattern, then sketch the `monkeypatch_session` fixture signature and finalization in a draft commit before opening a discussion PR."
+    },
+    {
+      "rank": 5,
+      "repo": "pola-rs/polars",
+      "issue": 21302,
+      "title": "Tracking issue for missing methods in `arr` namespace",
+      "why_pick_this": "Bounded scope (pick one method), clear precedent PRs to mirror (#23150, #24472), and active maintainer guidance. Polars is a hot repo and Rust+pyo3 work is strong technical signal. Risk is low because each method is a small, pattern-following PR \u2014 pick `arr.mean` first as the simplest.",
+      "first_step": "Read PR #23150 (arr.slice/head/tail) end-to-end to internalize the pattern, then scaffold `arr.mean` by copying the corresponding `list.mean` implementation in crates/polars-ops/src/chunked_array/array/ and wiring up the Python binding."
+    }
+  ]
+}

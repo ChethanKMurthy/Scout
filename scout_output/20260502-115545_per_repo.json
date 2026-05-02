@@ -1,0 +1,276 @@
+[
+  {
+    "repo": "pydantic/pydantic",
+    "picks": [
+      {
+        "issue_number": 11553,
+        "title": "PydanticOmit failing with duplicated union field",
+        "why_this_one": "This is a clear, reproducible bug in JSON schema generation where raising `PydanticOmit` in `__get_pydantic_json_schema__` fails when the same custom type appears in multiple fields due to deduplication logic in the schema generator. Maintainer Viicos has actively engaged, identified the root cause (deduplication cache interaction), and provided workarounds, signaling the fix direction is clear. The bug touches the non-trivial JSON schema generation code path.",
+        "approach": [
+          "Reproduce the bug with the provided example and trace through `pydantic/json_schema.py` to find where `PydanticOmit` propagates incorrectly when a deduplicated schema ref is encountered.",
+          "Identify the deduplication/caching logic in `GenerateJsonSchema` that causes the second occurrence of the same type to re-raise `PydanticOmit` instead of using the already-generated (omitted) schema.",
+          "Fix the deduplication path so that when a type's schema was previously omitted, subsequent references handle the omission gracefully (e.g., skip the field) rather than propagating the exception.",
+          "Add a regression test covering a model with multiple fields of the same union type that raises `PydanticOmit`, verifying schema generation succeeds.",
+          "Ensure existing `PydanticOmit` tests still pass and edge cases (nested models, `$defs` references) are covered."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "JSON schema generation",
+          "Python type system",
+          "bug diagnosis in complex code paths"
+        ],
+        "resume_blurb": "Fixed a bug in Pydantic's JSON schema generator where `PydanticOmit` incorrectly propagated for deduplicated union types, restoring correct schema generation for models with multiple fields sharing a custom omit-schema type."
+      },
+      {
+        "issue_number": 10010,
+        "title": "(feat. request): Add support for sequence types in `exclude=` / `include=` for `.model_dump()` method(s)",
+        "why_this_one": "Maintainer Viicos has already created a branch (`inc-ex-collections`) with the implementation approach and explicitly invited contributors to tackle it, saying 'Anyone can feel free to try and tackle this.' The fix involves both Python-side type annotation changes and Rust-side pydantic-core filter logic, making it substantive and interview-worthy.",
+        "approach": [
+          "Check out and review the `inc-ex-collections` branch in pydantic-core to understand the Rust-side changes needed in `src/serializers/filter.rs` to handle lists and tuples alongside sets.",
+          "Update `map_negative_indices` and related filter logic in pydantic-core to accept any sequence type, not just sets.",
+          "On the pydantic Python side, update the `IncEx` type alias to include `List` and `Tuple` variants, and update validation/coercion logic that converts the include/exclude argument before passing to core.",
+          "Add tests covering `model_dump(exclude=('x',))`, `model_dump(exclude=['x'])`, and negative index cases for list serialization.",
+          "Update type stubs and docstrings to reflect the expanded accepted types."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Rust/Python FFI",
+          "pydantic internals",
+          "type system",
+          "serialization"
+        ],
+        "resume_blurb": "Extended Pydantic's `model_dump()` to accept lists and tuples (not just sets) for `include`/`exclude` parameters, fixing negative-index handling in pydantic-core's Rust filter logic and updating Python type annotations."
+      },
+      {
+        "issue_number": 12647,
+        "title": "Faster _fields.py collect_model_fields",
+        "why_this_one": "This is a concrete performance issue in `_fields.py` with a maintainer-guided fix direction: Viicos merged an initial PR (#12681) and explicitly stated he will look at further suggestions, meaning follow-up PRs are welcome. The fix involves optimizing MRO traversal in `collect_model_fields` by leveraging already-cached pydantic field data from base classes, touching a core and frequently-executed code path.",
+        "approach": [
+          "Profile `collect_model_fields` on a model with a deep inheritance tree to establish a baseline benchmark.",
+          "Analyze the current MRO traversal in `get_model_type_hints` and identify which cases can be short-circuited by reading already-cached `model_fields`, `class_vars`, and `private_attributes` from direct pydantic base classes.",
+          "Implement the optimization: when all bases are pydantic models (no bare non-pydantic classes in the MRO), skip full MRO hint collection and merge from cached base data directly.",
+          "Handle the edge case of bare (non-pydantic) classes in the MRO that require full hint traversal, as identified by Viicos.",
+          "Add a benchmark test and regression tests for deep inheritance hierarchies including mixed pydantic/non-pydantic bases."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Python internals",
+          "performance optimization",
+          "type hint resolution",
+          "MRO traversal"
+        ],
+        "resume_blurb": "Optimized Pydantic's `collect_model_fields` to avoid redundant MRO traversal for deep inheritance hierarchies by leveraging cached field data from base models, reducing model construction time for large class trees."
+      }
+    ]
+  },
+  {
+    "repo": "astral-sh/ruff",
+    "picks": [
+      {
+        "issue_number": 3247,
+        "title": "FBT003: False positive with positional-only parameters",
+        "why_this_one": "This is a clear correctness bug where FBT003 fires on function calls where the callee only accepts positional arguments (e.g., `*args` functions, positional-only `/` parameters), making the boolean-trap warning meaningless. The maintainer explicitly invited a patch and pointed to the exact file (`rules/flake8_boolean_trap/helpers.rs`), and the fix involves improving the argument resolution logic to check whether the corresponding parameter is positional-only.",
+        "approach": [
+          "Locate `rules/flake8_boolean_trap/helpers.rs` and understand how FBT003 currently resolves call arguments to parameters.",
+          "Add logic to detect when a boolean positional argument maps to a `*args` parameter or a positional-only parameter (defined with `/` in the signature).",
+          "Use Ruff's existing semantic model / type inference to look up the callee's function definition and inspect parameter kinds.",
+          "Suppress the FBT003 diagnostic when the matched parameter is positional-only or variadic positional.",
+          "Add regression test cases covering `*args`, positional-only `/` syntax, and mixed signatures to prevent future regressions."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Rust",
+          "AST analysis",
+          "static analysis / lint rule implementation",
+          "Python type system knowledge"
+        ],
+        "resume_blurb": "Fixed a false-positive in Ruff's FBT003 boolean-trap lint rule by teaching the checker to suppress warnings when the argument maps to a positional-only or variadic parameter, eliminating spurious warnings on common patterns like pandas `option_context`."
+      }
+    ]
+  },
+  {
+    "repo": "astral-sh/uv",
+    "picks": []
+  },
+  {
+    "repo": "pola-rs/polars",
+    "picks": [
+      {
+        "issue_number": 1999,
+        "title": "Read CSV files created by R (header line is one column shorter)",
+        "why_this_one": "This is a well-scoped CSV parsing enhancement with clear acceptance criteria: add `prefix_fields` and `suffix_fields` parameters to the CSV reader so files with missing header fields (common R output) can be read correctly. The maintainer (ritchie46) has explicitly stated the desired API direction, and the issue has been marked 'accepted'.",
+        "approach": [
+          "Locate the CSV header parsing logic in the Rust source (polars-io CSV utilities) where column count is determined.",
+          "Add `prefix_fields: Option<Vec<String>>` and `suffix_fields: Option<Vec<String>>` parameters to the CSV reader options struct in Rust.",
+          "When these parameters are set, prepend/append the given field names to the parsed header before column count validation, allowing the data rows (which have more columns) to align correctly.",
+          "Expose the new parameters in the Python bindings via `scan_csv` / `read_csv` with appropriate type annotations and docstrings.",
+          "Add regression tests covering R-style CSVs (header N columns, data N+1 columns) and the new parameters, verifying correct column naming and data alignment."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Rust",
+          "CSV parsing",
+          "Python bindings (PyO3)",
+          "file format handling"
+        ],
+        "resume_blurb": "Added `prefix_fields`/`suffix_fields` parameters to Polars' CSV reader in Rust to support R-generated files where the header row has one fewer column than data rows, fixing a long-standing parsing incompatibility."
+      },
+      {
+        "issue_number": 21302,
+        "title": "Tracking issue for missing methods in `arr` namespace",
+        "why_this_one": "Several methods (`gather`, `gather_every`, `mean`, `concat`) are explicitly listed as missing from the `arr` (FixedSizeList) namespace, the maintainer (coastalwhite) has given detailed guidance on implementation approach, and prior PRs have already merged similar methods (`slice`/`head`/`tail`) establishing clear patterns to follow.",
+        "approach": [
+          "Pick one or two unchecked methods from the list (e.g., `mean` and `gather`) as a focused PR scope.",
+          "Study the existing `arr` namespace implementations (e.g., `arr.sum`, `arr.std`) in the Rust source to understand the pattern for fixed-size array aggregations.",
+          "Implement `arr.mean` by iterating over the fixed-size chunks and computing element-wise means, returning a scalar Series of the appropriate float type.",
+          "Implement `arr.gather` by indexing into each fixed-size array with a provided indices expression, returning a `List` type (since output size is variable).",
+          "Add Python bindings, type stubs, docstrings, and unit tests covering edge cases (nulls, out-of-bounds indices, empty arrays)."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Rust",
+          "Apache Arrow array types",
+          "Python bindings (PyO3)",
+          "data structures"
+        ],
+        "resume_blurb": "Implemented missing `arr.mean` and `arr.gather` methods in Polars' fixed-size array namespace in Rust, expanding the `arr` API parity with the `list` namespace."
+      },
+      {
+        "issue_number": 14373,
+        "title": "Add Pandas `.compare()` Functionality",
+        "why_this_one": "The issue is marked 'accepted', has active maintainer engagement as recently as April 2026, and the feature is well-understood: a DataFrame method that compares two frames and returns differences. The maintainer's latest comment signals openness to a non-pandas-modeled API, giving a contributor room to propose a clean design.",
+        "approach": [
+          "Design a `DataFrame.compare(other, align_index=True, result_names=('self', 'other'))` method that returns rows/columns where values differ, inspired by pandas but with a cleaner parameter set as hinted by orlp.",
+          "Implement in Python (or Rust-backed) by performing a join on row index or a specified key, then using element-wise comparison expressions to identify differing cells.",
+          "Return a structured result: either a long-format DataFrame with columns `[row, column, self_value, other_value]` or a wide format with MultiIndex-style column pairs, with a `result_type` parameter.",
+          "Handle schema mismatches, null comparisons, and type casting edge cases explicitly.",
+          "Add comprehensive tests covering identical frames, frames with nulls, type differences, and mismatched shapes, plus a benchmark showing speedup over the pandas equivalent."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Python",
+          "DataFrame API design",
+          "expression system",
+          "testing"
+        ],
+        "resume_blurb": "Designed and implemented `DataFrame.compare()` in Polars as a performant alternative to pandas' equivalent, enabling efficient identification of differing rows and columns between two DataFrames."
+      }
+    ]
+  },
+  {
+    "repo": "encode/httpx",
+    "picks": [],
+    "skipped": "no candidate issues"
+  },
+  {
+    "_raw": "Looking at the two issues:\n\n**Issue #10180** - Mounting sub-applications under `APIRouter`: The maintainer explicitly said \"we should either raise on `APIRouter.mount` or make it work\" - this is a clear acceptance signal. The fix involves either implementing proper mount support in `APIRouter` (propagating mounts when `include_router` is called) or raising a clear error. This is tractable and touches non-trivial routing code.\n\n**Issue #13056** - Can't use `Annotated` with `ForwardRef`: The maintainer confirmed the bug is real (forward references with `Annotated` + `Depends` cause incorrect OpenAPI generation). This touches FastAPI's dependency resolution and type annotation handling - non-trivial code paths involving `get_typed_annotation`, `ForwardRef` resolution, and how `Annotated` metadata is processed when types aren't yet defined.\n\nBoth issues have maintainer engagement and clear acceptance criteria. Let me evaluate effort and approach for each.\n\n```json\n{\n  \"repo\": \"tiangolo/fastapi\",\n  \"picks\": [\n    {\n      \"issue_number\": 13056,\n      \"title\": \"Can't use `Annotated` with `ForwardRef`\",\n      \"why_this_one\": \"When `from __future__ import annotations` is used, all annotations become strings/ForwardRefs, and FastAPI's dependency injection logic fails to correctly resolve `Annotated[ForwardRef, Depends(...)]` \u2014 the dependency is dropped and the parameter is treated as a query param. The maintainer confirmed the bug is real and the root cause is clear (forward ref resolution happens before the class is defined in the module namespace). This is a substantive correctness fix in FastAPI's type annotation resolution pipeline.\",\n      \"approach\": [\n        \"Trace the bug through `fastapi/_compat.py` and `fastapi/dependencies/utils.py` \u2014 specifically `get_typed_annotation` and `analyze_param` where `Annotated` metadata is extracted.\",\n        \"Identify where `get_type_hints()` or manual `ForwardRef` evaluation is called and ensure it uses the correct `localns`/`globalns` from the endpoint's module so forward refs resolve properly.\",\n        \"When `Annotated` wraps a `ForwardRef`, ensure the ref is evaluated before inspecting the metadata list for `Depends`, `Body`, etc. \u2014 currently the unresolved ref may cause the metadata to be ignored.\",\n        \"Add a regression test using `from __future__ import annotations` with a dataclass defined after the endpoint that uses `Annotated[LateClass, Depends(...)]`.\",\n        \"Verify the fix works for both dataclasses and Pydantic models defined after the endpoint in the same module.\"\n      ],\n      \"effort\": \"medium\",\n      \"skills_demonstrated\": [\"Python type system\", \"ForwardRef resolution\", \"FastAPI dependency injection internals\", \"Annotated metadata handling\"],\n      \"resume_blurb\": \"Fixed a correctness bug in FastAPI's dependency injection where `Annotated` types wrapping forward references (from `from __future__ import annotations`) were silently ignored, causing dependencies to be misclassified as query parameters.\"\n    },\n    {\n      \"issue_number\": 10180,\n      \"title\": \"Mounting sub-applications under `APIRouter`\",\n      \"why_this_one\": \"Sub-applications mounted via `APIRouter.mount()` are silently dropped when the router is included in a `FastAPI` app because `APIRouter` never propagates its `routes` of type `Mount` through `include_router`. The maintainer explicitly said 'we should either raise on `APIRouter.mount` or make it work', giving clear acceptance criteria for either path. The fix touches FastAPI's router inclusion logic, a non-trivial and interview-worthy code path.\",\n      \"approach\": [\n        \"Inspect `APIRouter.include_router` in `fastapi/routing.py` to see how routes are copied to the parent app \u2014 identify that `Mount` route types are not handled/propagated.\",\n        \"Decide on the 'make it work' path: when `FastAPI.include_router` processes an `APIRouter`, iterate its routes and for any `Mount` entries, apply the router's prefix and add them to the app's route list.\",\n        \"Ensure the prefix from the `APIRouter` is correctly prepended to the mount path (e.g., `/api` + `/subapi` \u2192 `/api/subapi`).\",\n        \"Add a regression test matching the exact reproduction case in the issue: `APIRouter` with prefix, a mounted sub-`FastAPI`, included into main app, assert the sub-app route is reachable.\",\n        \"If the 'make it work' approach has edge cases (e.g., lifespan conflicts), fall back to raising a clear `ValueError` with a descriptive message in `APIRouter.mount`, and add a test for that instead.\"\n      ],\n      \"effort\": \"medium\",\n      \"skills_demonstrated\": [\"ASGI routing\", \"FastAPI/Starlette router internals\", \"sub-application mounting\", \"Python\"],\n      \"resume_blurb\": \"Fixed a silent bug in FastAPI where sub-applications mounted on an `APIRouter` were dropped during `include_router`, by propagating `Mount` routes with correct prefix resolution through the router inclusion pipeline.\"\n    }\n  ]\n}\n```"
+  },
+  {
+    "repo": "pytest-dev/pytest",
+    "picks": [
+      {
+        "issue_number": 3697,
+        "title": "Handling of loggers with propagate=False",
+        "why_this_one": "A maintainer (bluetech) has already opened PR #14375 implementing the fix, meaning the direction is clear and accepted. The issue is about pytest's log capture plugin missing log records from loggers with propagate=False because it only hooks into the root logger. This is a real correctness bug affecting users who use library loggers configured with propagate=False.",
+        "approach": [
+          "Study how pytest's LogCaptureHandler currently attaches to the root logger in `src/_pytest/logging.py`.",
+          "Identify all non-propagating loggers at test session start by iterating `logging.Logger.manager.loggerDict`.",
+          "Attach the LogCaptureHandler to each non-propagating logger in addition to the root logger.",
+          "Ensure handlers are properly removed after each test to avoid leaking state between tests.",
+          "Add regression tests that create a logger with propagate=False and verify its output is captured."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Python logging internals",
+          "pytest plugin architecture",
+          "test fixture lifecycle"
+        ],
+        "resume_blurb": "Fixed pytest's log capture plugin to correctly capture log records from loggers configured with propagate=False, resolving a long-standing correctness bug affecting users of third-party libraries."
+      },
+      {
+        "issue_number": 363,
+        "title": "Using monkeypatch in non function scoped fixture",
+        "why_this_one": "Maintainer nicoddemus explicitly approved adding session-scoped monkeypatch to core in 2019, and recent activity (2026) shows continued user demand. The fix is well-scoped: add a `monkeypatch_session` (or scope-parametrized) fixture analogous to how `tmp_path_factory` was added alongside `tmp_path`, with clear acceptance criteria from maintainers.",
+        "approach": [
+          "Study how the existing `monkeypatch` fixture is implemented in `src/_pytest/monkeypatch.py` as a function-scoped fixture.",
+          "Add a `MonkeyPatch` factory or session-scoped fixture (e.g., `session_mocker` pattern) that creates a `MonkeyPatch` instance with session scope and calls `undo()` at session teardown.",
+          "Wire the new fixture into the plugin's fixture registration so it appears in `pytest --fixtures` output.",
+          "Add documentation explaining when to use session vs function scope and the risks of session-scoped patching.",
+          "Add tests covering session-scoped monkeypatching and verifying undo is called at session end."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "pytest fixture system",
+          "Python context management",
+          "API design"
+        ],
+        "resume_blurb": "Implemented session-scoped monkeypatch fixture in pytest core, enabling users to apply environment patches across an entire test session with proper teardown, closing a 10-year-old feature request."
+      }
+    ]
+  },
+  {
+    "repo": "python-poetry/poetry",
+    "picks": [
+      {
+        "issue_number": 9990,
+        "title": "Activate `requires-plugins` from a project without using `poetry install`",
+        "why_this_one": "A maintainer explicitly outlined the feature direction (`poetry install --only-plugins`) and invited a PR, signaling clear acceptance criteria and willingness to review. The scope is bounded: add a new `--only-plugins` flag to the install command that triggers plugin installation without full project install. The maintainer comment from 2026-03-05 explicitly says 'the fastest way to see this feature is to provide a PR implementing it.'",
+        "approach": [
+          "Trace how `requires-plugins` is currently read and activated during `poetry install` to understand the existing code path.",
+          "Add a `--only-plugins` CLI option to the `install` command in `src/poetry/console/commands/install.py`.",
+          "When `--only-plugins` is set, skip dependency resolution and root package installation, but still invoke the plugin installation logic.",
+          "Add tests covering the new flag, verifying plugins are installed but the project itself is not.",
+          "Update the relevant documentation/help text for the `install` command."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "CLI design",
+          "Python plugin systems",
+          "Poetry internals",
+          "testing"
+        ],
+        "resume_blurb": "Added `--only-plugins` flag to Poetry's install command, enabling plugin activation from `requires-plugins` without a full project install, improving CI/Docker workflows."
+      },
+      {
+        "issue_number": 5506,
+        "title": "Solver breaks with related dependencies that are both conditional",
+        "why_this_one": "A maintainer (radoering) has already identified the root cause, outlined a concrete fix strategy (treating restricted conditional deps as multiple-constraint dependencies), and even created a draft PR \u2014 meaning the approach is validated and the candidate has a clear starting point. The bug is in a non-trivial code path (the dependency solver) making it highly interview-worthy.",
+        "approach": [
+          "Study the draft PR (#6969) and the maintainer's explanation in the issue to understand the multiple-constraint dependency treatment approach.",
+          "Identify where in `poetry-core`'s solver/provider the restricted conditional dependency is processed and add logic to split it into multiple constraint overrides.",
+          "Reproduce the bug using the provided `pyproject.toml` gist as a regression test case.",
+          "Address the performance concerns mentioned by the maintainer (the original draft was rejected for perf issues) \u2014 profile and optimize the new code path.",
+          "Add targeted unit tests for the solver covering the platform-conditional + version-conditional dependency combination."
+        ],
+        "effort": "large",
+        "skills_demonstrated": [
+          "dependency resolution algorithms",
+          "constraint solving",
+          "Python internals",
+          "performance profiling"
+        ],
+        "resume_blurb": "Fixed a Poetry solver bug where platform-conditional and version-conditional dependencies on the same package caused incorrect resolution, implementing a multiple-constraint splitting approach in the core solver."
+      },
+      {
+        "issue_number": 461,
+        "title": "Suggestion: new command to bump versions of dependencies in `pyproject.toml`",
+        "why_this_one": "Maintainers have explicitly reopened this as a valid feature request for a bulk `upgrade` command, and there is sustained community interest over years. The scope is well-defined: a command that updates version constraints in `pyproject.toml` to the latest available, distinct from `poetry update` which only updates the lock file. The feature touches the CLI, package repository querying, and pyproject.toml manipulation \u2014 all substantive code paths.",
+        "approach": [
+          "Add a new `upgrade` command (or `update --latest` flag) to `src/poetry/console/commands/` that accepts optional package name arguments.",
+          "For each targeted dependency, query the configured repositories for the latest available version using the existing `RepositoryPool` and `Chooser` infrastructure.",
+          "Rewrite the version constraint in `pyproject.toml` to the latest version (respecting the original constraint style, e.g., `^`, `~`, `>=`).",
+          "After updating constraints, trigger a lock file update to ensure consistency.",
+          "Add integration tests that mock repository responses and verify both `pyproject.toml` and `poetry.lock` are updated correctly."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "CLI design",
+          "package version resolution",
+          "TOML manipulation",
+          "Python testing"
+        ],
+        "resume_blurb": "Implemented a `poetry upgrade` command for Poetry that bumps dependency version constraints in `pyproject.toml` to their latest available versions, filling a long-requested gap between `add` and `update`."
+      }
+    ]
+  }
+]

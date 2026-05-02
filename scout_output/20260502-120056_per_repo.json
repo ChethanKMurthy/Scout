@@ -1,0 +1,239 @@
+[
+  {
+    "repo": "pydantic/pydantic",
+    "picks": [
+      {
+        "issue_number": 8271,
+        "title": "OpenAPI discriminator field disapeared with pydantic v2.5",
+        "why_this_one": "A regression introduced in v2.5 causes the OpenAPI discriminator field to disappear from generated schemas for discriminated unions, breaking downstream API consumers. The issue has been confirmed by a maintainer (accidentally closed and reopened), has clear before/after behavior, and has active community engagement showing real-world impact.",
+        "approach": [
+          "Reproduce the regression by writing a test with a discriminated union model and asserting the discriminator field appears in the JSON schema output.",
+          "Bisect between v2.3.0 and v2.5.0 to identify the commit that introduced the regression in the JSON schema generation code.",
+          "Inspect `pydantic/_internal/_generate_schema.py` and `pydantic/json_schema.py` for how discriminated unions are handled and where the discriminator mapping is emitted.",
+          "Fix the schema generation so that when a union has a discriminator, the OpenAPI `discriminator` object (with `propertyName` and `mapping`) is included at the correct nesting level.",
+          "Add regression tests covering both inline and `$ref`-based discriminator schemas to prevent future breakage."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "JSON schema generation",
+          "OpenAPI spec compliance",
+          "discriminated unions",
+          "regression debugging"
+        ],
+        "resume_blurb": "Fixed a regression in Pydantic v2.5 where OpenAPI discriminator fields were omitted from generated schemas for discriminated unions, restoring spec-compliant output for downstream API consumers."
+      },
+      {
+        "issue_number": 9206,
+        "title": "Union of Annotated fields do not respect Field(strict=False)",
+        "why_this_one": "A clear correctness bug where `Field(strict=False)` on individual union members is ignored when the model has `ConfigDict(strict=True)`, meaning users cannot opt specific fields out of strict mode in unions. The issue has a minimal reproducible example and touches the non-trivial union/strict mode resolution logic in schema generation.",
+        "approach": [
+          "Write a failing test reproducing the exact example: a model with `ConfigDict(strict=True)` and a union field where each member is `Annotated[..., Field(strict=False)]`.",
+          "Trace through `pydantic/_internal/_generate_schema.py` to understand how `strict` config propagates into union member schemas and where field-level `strict` overrides should take precedence.",
+          "Identify where the strict context is applied to union members and ensure that a field-level `strict=False` annotation correctly overrides the model-level config.",
+          "Verify the fix works for both `Union[Annotated[A, Field(strict=False)], Annotated[B, Field(strict=False)]]` and mixed cases where only some members override strict.",
+          "Add tests covering edge cases: partial overrides, nested models, and `TypeAdapter` usage."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "type system",
+          "union schema generation",
+          "strict mode handling",
+          "pydantic internals"
+        ],
+        "resume_blurb": "Fixed a correctness bug in Pydantic where `Field(strict=False)` annotations on individual union members were ignored when model-level `ConfigDict(strict=True)` was set, enabling proper per-field strict mode overrides."
+      },
+      {
+        "issue_number": 12647,
+        "title": "Faster _fields.py collect_model_fields",
+        "why_this_one": "A maintainer has already merged one related PR (#12681) and explicitly stated they will look at further suggestions, indicating active engagement and a clear path to merge. The issue targets a real performance bottleneck in `collect_model_fields` for large inheritance trees, which is a substantive optimization with measurable impact.",
+        "approach": [
+          "Profile `collect_model_fields` with a benchmark using models with deep inheritance hierarchies (10+ levels) to establish a baseline.",
+          "Analyze the remaining MRO traversal in `_typing_extra.get_model_type_hints` after the already-merged PR to identify further redundant work.",
+          "Implement caching or short-circuit logic that leverages already-computed `model_fields` from Pydantic base classes rather than re-traversing the full MRO for hints.",
+          "Handle the edge case of non-Pydantic bare base classes in the inheritance chain (as documented by the maintainer) correctly.",
+          "Add benchmarks and regression tests to demonstrate the speedup and ensure correctness for complex inheritance scenarios."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "performance optimization",
+          "Python MRO/metaclass internals",
+          "type hints resolution",
+          "benchmarking"
+        ],
+        "resume_blurb": "Optimized Pydantic's `collect_model_fields` to reduce redundant MRO traversal for models with large inheritance trees, delivering measurable startup-time improvements for complex model hierarchies."
+      }
+    ]
+  },
+  {
+    "repo": "astral-sh/ruff",
+    "picks": [
+      {
+        "issue_number": 3247,
+        "title": "FBT003: False positive with positional-only parameters",
+        "why_this_one": "This is a clear correctness bug where FBT003 fires on function calls where the callee only accepts positional arguments (e.g., `*args` or positional-only `/` params), making the boolean-trap warning meaningless. The maintainer explicitly said 'I would accept that patch' and pointed to the exact file (`rules/flake8_boolean_trap/helpers.rs`), giving clear acceptance criteria and a known code path to modify.",
+        "approach": [
+          "Locate the FBT003 rule in `crates/ruff_linter/src/rules/flake8_boolean_trap/` and understand how it resolves the callee's signature.",
+          "Add logic to look up the function definition (or stub) for the called function and check whether the argument position corresponds to a positional-only parameter (before `/`) or a `*args` parameter.",
+          "If the parameter at the call-site position is positional-only or variadic positional, suppress the FBT003 diagnostic for that argument.",
+          "Also extend the existing allowlist with well-known stdlib/popular-library methods that are positional-only (e.g., `bool`, `pd.option_context`, `set_enabled`).",
+          "Add regression test fixtures covering `*args`, positional-only `/` syntax, and the allowlisted methods to prevent future regressions."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Rust",
+          "static analysis / type inference",
+          "AST traversal",
+          "linter rule implementation"
+        ],
+        "resume_blurb": "Fixed a false-positive in Ruff's FBT003 boolean-trap lint rule by teaching it to resolve callee signatures and suppress warnings when the argument position maps to a positional-only or variadic parameter, eliminating spurious warnings on pandas and stdlib APIs."
+      }
+    ]
+  },
+  {
+    "repo": "astral-sh/uv",
+    "picks": []
+  },
+  {
+    "repo": "pola-rs/polars",
+    "picks": [
+      {
+        "issue_number": 21302,
+        "title": "Tracking issue for missing methods in `arr` namespace",
+        "why_this_one": "Several concrete methods (gather, mean, gather_every, concat) are still unimplemented in the `arr` (FixedSizeList) namespace, and maintainer coastalwhite has given explicit guidance on the approach and accepted prior PRs for related methods. The scope is bounded \u2014 each method follows the same pattern as existing `list` namespace implementations adapted for fixed-size arrays.",
+        "approach": [
+          "Pick one or two unchecked methods (e.g., `mean` and `gather`) from the tracking list to keep scope tight.",
+          "Study the existing `arr.slice`/`arr.head`/`arr.tail` PRs (#23150) and `arr.eval` (#24472) to understand the pattern for implementing `arr` namespace methods.",
+          "Implement the kernel in Rust under `crates/polars-ops/src/chunked_array/array/` mirroring the corresponding `list` implementation but operating on `FixedSizeListArray`.",
+          "Expose the method in the Python `arr` namespace with appropriate type stubs and docstrings.",
+          "Add unit tests covering edge cases (nulls, empty arrays, mismatched lengths) and ensure the method returns the correct dtype (Array vs List depending on whether output size is fixed)."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Rust",
+          "Apache Arrow array types",
+          "Polars expression system",
+          "Python FFI/pyo3"
+        ],
+        "resume_blurb": "Implemented missing `arr.mean` and `arr.gather` methods in Polars' fixed-size array namespace, extending the expression engine in Rust and exposing them through the Python API with full test coverage."
+      },
+      {
+        "issue_number": 1999,
+        "title": "Read CSV files created by R (header line is one column shorter)",
+        "why_this_one": "The maintainer (ritchie46) has given a clear, concrete API direction: add `prefix_fields` and `suffix_fields` parameters to the CSV reader so users can handle files where the header has fewer fields than data rows. The issue is accepted, the approach is specified, and it touches the non-trivial CSV parsing path in Rust.",
+        "approach": [
+          "Add `prefix_fields: list[str] | None` and `suffix_fields: list[str] | None` parameters to `scan_csv` / `read_csv` in both the Rust core (`CsvReadOptions`) and the Python bindings.",
+          "In the CSV header-parsing logic, prepend/append synthetic field names when these parameters are provided, adjusting the expected column count accordingly.",
+          "Ensure the data rows are parsed with the adjusted column count so the extra leading/trailing column is correctly mapped.",
+          "Handle edge cases: mismatched counts, interaction with `has_header=False`, and schema inference.",
+          "Add tests using R-style CSV fixtures (header N columns, data N+1 columns) and verify round-trip correctness."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Rust",
+          "CSV parsing",
+          "Polars IO layer",
+          "Python API design"
+        ],
+        "resume_blurb": "Added `prefix_fields`/`suffix_fields` parameters to Polars' CSV reader in Rust to natively handle R-generated CSV files where the header row is one column shorter than the data rows."
+      },
+      {
+        "issue_number": 14373,
+        "title": "Add Pandas `.compare()` Functionality",
+        "why_this_one": "The issue is accepted and maintainer orlp recently commented (April 2026) with a concrete opinion on API design (don't blindly copy pandas), signalling active engagement and a clear path to a PR. Implementing a DataFrame diff/compare utility is a well-scoped, interview-worthy feature touching join logic and expression evaluation.",
+        "approach": [
+          "Design a `DataFrame.compare(other, align_on=None, null_equal=True)` API that returns a struct/long-form result highlighting differing cells, informed by orlp's feedback to avoid confusing pandas parameter names.",
+          "Implement the core logic by aligning the two frames (optionally on key columns), then doing element-wise inequality checks per column using existing Polars expressions.",
+          "Return a tidy result: either a filtered DataFrame of differing rows with `self`/`other` column pairs, or a long-form representation \u2014 confirm preferred shape with maintainers before coding.",
+          "Handle schema mismatches, null semantics, and type coercion edge cases explicitly.",
+          "Add comprehensive tests including null values, mismatched schemas, and large DataFrames to demonstrate correctness and performance vs. pandas."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Python",
+          "Polars expression system",
+          "DataFrame API design",
+          "testing"
+        ],
+        "resume_blurb": "Designed and implemented `DataFrame.compare()` in Polars, providing a performant alternative to pandas' `.compare()` for identifying differences between two DataFrames, with a cleaner API informed by maintainer feedback."
+      }
+    ]
+  },
+  {
+    "repo": "encode/httpx",
+    "picks": [],
+    "skipped": "no candidate issues"
+  },
+  {
+    "repo": "tiangolo/fastapi",
+    "picks": [],
+    "skipped": "no candidate issues"
+  },
+  {
+    "repo": "pytest-dev/pytest",
+    "picks": [
+      {
+        "issue_number": 3697,
+        "title": "Handling of loggers with propagate=False",
+        "why_this_one": "A maintainer (bluetech) has already opened PR #14375 implementing the fix and is actively soliciting feedback and testing \u2014 this is a clear signal the direction is accepted and a PR is welcome. The fix involves non-trivial logging internals: attaching capture handlers to all non-propagating loggers, not just the root logger. The problem is well-defined and reproducible.",
+        "approach": [
+          "Study the existing log capture plugin in `src/_pytest/logging.py`, specifically how `LogCaptureHandler` is attached to the root logger.",
+          "Enumerate all registered loggers via `logging.Logger.manager.loggerDict` and identify those with `propagate=False`.",
+          "Attach the capture handler directly to each non-propagating logger at the start of capture, mirroring what is done for the root logger.",
+          "Detach the handlers and restore state in the teardown/cleanup path to avoid handler leaks between tests.",
+          "Add regression tests that create a logger with `propagate=False` and assert its output is captured in the test log."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "Python logging internals",
+          "pytest plugin architecture",
+          "test fixture lifecycle"
+        ],
+        "resume_blurb": "Fixed pytest's log capture plugin to correctly capture output from loggers with propagate=False by attaching capture handlers directly to non-propagating loggers, closing a long-standing gap for users with custom logging hierarchies."
+      },
+      {
+        "issue_number": 363,
+        "title": "Using monkeypatch in non function scoped fixture",
+        "why_this_one": "Maintainer nicoddemus explicitly approved adding `monkeypatch_session` (and by extension broader scoped variants) to core in 2019, comparing it to the successful `tmp_path_factory` precedent \u2014 clear acceptance criteria with no architectural objection. The implementation is bounded: add a new fixture factory that mirrors `monkeypatch` but accepts a scope parameter, with undo called at the appropriate scope teardown.",
+        "approach": [
+          "Review how `monkeypatch` fixture is implemented in `src/_pytest/monkeypatch.py` and how `tmp_path`/`tmp_path_factory` handle multiple scopes as a model.",
+          "Add a `monkeypatch_session` fixture (scope='session') and optionally `monkeypatch_module`/`monkeypatch_package` following the same pattern.",
+          "Ensure `undo()` is called at the correct scope boundary via fixture finalization (`yield` + `mp.undo()`).",
+          "Add tests covering session-scoped and module-scoped monkeypatching, verifying patches are undone at the right scope boundary.",
+          "Update documentation to describe the new fixtures and note the reconciliation path if invocation-scoped fixtures are ever added."
+        ],
+        "effort": "medium",
+        "skills_demonstrated": [
+          "pytest fixture scoping",
+          "plugin internals",
+          "Python context management"
+        ],
+        "resume_blurb": "Implemented session- and module-scoped monkeypatch fixtures in pytest core, enabling users to apply patches across broader test scopes without boilerplate workarounds, following an approach explicitly approved by maintainers."
+      }
+    ]
+  },
+  {
+    "repo": "python-poetry/poetry",
+    "picks": [
+      {
+        "issue_number": 5506,
+        "title": "Solver breaks with related dependencies that are both conditional",
+        "why_this_one": "This is a confirmed solver bug with a clear reproduction case and a maintainer-outlined fix direction (treating restricted dependencies as multiple-constraint dependencies). A draft PR (#6969) exists as a starting point, and the maintainer explicitly noted it as a reference for anyone interested in tackling it.",
+        "approach": [
+          "Study the draft PR #6969 and the maintainer's explanation in the issue about treating restricted dependencies as hidden multiple-constraint dependencies.",
+          "Identify the code path in the solver where conditional dependencies are resolved and where the split into overrides needs to happen.",
+          "Implement the logic to detect a single-version dependency with a platform/env marker and split it into two overrides: one for the excluded platform (not required) and one for the included platform (version-pinned).",
+          "Address the performance concerns mentioned by the maintainer \u2014 profile the change and optimize the hot path if needed.",
+          "Add a regression test using the exact pyproject.toml from the issue (dbt + dbt-bigquery with sys_platform markers) to confirm the solver no longer breaks."
+        ],
+        "effort": "large",
+        "skills_demonstrated": [
+          "dependency solving",
+          "constraint satisfaction",
+          "Python internals",
+          "performance profiling"
+        ],
+        "resume_blurb": "Fixed a Poetry dependency solver bug where conditional (platform-restricted) dependencies caused incorrect resolution by implementing multiple-constraint splitting for marker-restricted packages, with a regression test suite."
+      }
+    ]
+  }
+]

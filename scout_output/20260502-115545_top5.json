@@ -1,0 +1,44 @@
+{
+  "top": [
+    {
+      "rank": 1,
+      "repo": "astral-sh/ruff",
+      "issue": 3247,
+      "title": "FBT003: False positive with positional-only parameters",
+      "why_pick_this": "Ruff is a hugely recognizable repo (great resume signal) and this is a tightly scoped correctness bug with a maintainer pointing at the exact file. False-positive fixes in lint rules are easy to demo and explain in interviews ('I made Ruff stop yelling about pandas option_context'). Rust + AST work adds technical substance without scope creep.",
+      "first_step": "Clone ruff, write a failing test in crates/ruff_linter/resources/test/fixtures/flake8_boolean_trap covering *args and positional-only `/` cases, then open rules/flake8_boolean_trap/helpers.rs to see how the call argument is currently resolved."
+    },
+    {
+      "rank": 2,
+      "repo": "pydantic/pydantic",
+      "issue": 11553,
+      "title": "PydanticOmit failing with duplicated union field",
+      "why_pick_this": "Maintainer Viicos has already root-caused it (deduplication cache) so the diagnostic work is half done. Pydantic is a top-tier resume name, and the story is clean: 'I traced a bug through the JSON schema generator's dedup cache and fixed exception propagation.' Bounded scope, clear regression test, high merge probability in <2 weeks.",
+      "first_step": "Reproduce the bug locally from the issue's MRE, then set a breakpoint in GenerateJsonSchema in pydantic/json_schema.py at the dedup/cache lookup to watch how PydanticOmit propagates on the second occurrence."
+    },
+    {
+      "rank": 3,
+      "repo": "pytest-dev/pytest",
+      "issue": 3697,
+      "title": "Handling of loggers with propagate=False",
+      "why_pick_this": "Pytest is universally recognized. A maintainer already opened PR #14375, which is both a risk (might land first) and an opportunity \u2014 the candidate can either help land that PR (review, tests, edge cases) or pick up a related sub-issue. Either way the narrative is strong: 'I fixed pytest's log capture for non-propagating loggers.' Tractable Python-only change.",
+      "first_step": "Read PR #14375's diff and comments end-to-end; if it's stalled, offer to add the missing tests/edge cases as a follow-up commit or co-author. Reproduce the bug with a propagate=False logger first to ground the discussion."
+    },
+    {
+      "rank": 4,
+      "repo": "pola-rs/polars",
+      "issue": 21302,
+      "title": "Tracking issue for missing methods in `arr` namespace",
+      "why_pick_this": "Polars is a hot resume name and tracking issues with established patterns are the highest-merge-probability contributions in any repo \u2014 you literally copy the shape of a prior merged PR. Picking just one method (e.g., arr.mean) keeps it under 2 weeks and gives a clean Rust + PyO3 story. Low-risk scope, high recognition.",
+      "first_step": "Find the merged PR that added arr.slice/head/tail, read its diff as a template, then scaffold arr.mean by copying the structure and adapting the kernel from the equivalent list.mean implementation."
+    },
+    {
+      "rank": 5,
+      "repo": "pydantic/pydantic",
+      "issue": 10010,
+      "title": "Add support for sequence types in exclude=/include= for model_dump()",
+      "why_pick_this": "Maintainer has a starter branch and explicitly invited contributors \u2014 strong merge signal. The Rust (pydantic-core) + Python type-stub combo is a great interview story ('I shipped across the FFI boundary'). Slightly higher effort than #11553 but the resume value of a cross-language Pydantic feature is excellent. Pick this as the second Pydantic issue only if #11553 is already in flight or taken.",
+      "first_step": "Check out the inc-ex-collections branch on pydantic-core, build it locally against a dev install of pydantic, and run the existing include/exclude test suite to see what currently passes/fails before extending filter.rs."
+    }
+  ]
+}
